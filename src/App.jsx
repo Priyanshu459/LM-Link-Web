@@ -62,7 +62,7 @@ function App() {
     if (attachments && attachments.length > 0) {
       attachments.forEach(att => {
         if (att.type === 'text') {
-          finalContent += `\\n\\n--- Attached File: ${att.name} ---\\n${att.content}`;
+          finalContent += `\n\n--- Attached File: ${att.name} ---\n${att.content}`;
         } else if (att.type === 'image') {
           imageAttachments.push(att.url);
         }

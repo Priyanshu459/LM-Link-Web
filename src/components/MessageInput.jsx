@@ -54,13 +54,24 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           const arrayBuffer = await file.arrayBuffer();
           const pdfjs = await loadPdfJs();
           
-          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+          const pdf = await pdfjs.getDocument({
+            data: arrayBuffer,
+            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+            cMapPacked: true,
+          }).promise;
+          
           let text = '';
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
-            text += content.items.map(item => item.str).join(' ') + '\\n';
+            text += content.items.map(item => item.str).join(' ') + '\n';
           }
+          
+          if (!text.trim()) {
+            alert(`No text could be extracted from ${file.name}. It might be a scanned image or lack a text layer.`);
+            return;
+          }
+          
           setAttachments(prev => [...prev, { type: 'text', content: text, name: file.name }]);
         } catch (error) {
           console.error("Error parsing PDF:", error);
