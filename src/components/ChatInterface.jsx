@@ -54,10 +54,22 @@ const ChatInterface = ({ messages }) => {
             {msg.role === 'user' ? <User size={20} /> : <Cpu size={20} />}
           </div>
           <div className="message-content">
-            <div 
-              className={`bubble ${msg.role === 'user' ? 'user-bubble' : 'ai-bubble markdown-body'}`}
-              dangerouslySetInnerHTML={renderMarkdown(msg.content)}
-            />
+            <div className={`bubble ${msg.role === 'user' ? 'user-bubble' : 'ai-bubble markdown-body'}`}>
+              {Array.isArray(msg.content) ? (
+                <div className="complex-message">
+                  {msg.content.map((part, i) => {
+                    if (part.type === 'text') {
+                      return <div key={i} dangerouslySetInnerHTML={renderMarkdown(part.text)} />;
+                    } else if (part.type === 'image_url') {
+                      return <img key={i} src={part.image_url.url} alt="Attachment" className="message-attached-img" />;
+                    }
+                    return null;
+                  })}
+                </div>
+              ) : (
+                <div dangerouslySetInnerHTML={renderMarkdown(msg.content)} />
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -121,6 +133,17 @@ const ChatInterface = ({ messages }) => {
         .ai-bubble {
           background: var(--ai-bubble);
           color: var(--text-primary);
+        }
+        .complex-message {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .message-attached-img {
+          max-width: 100%;
+          border-radius: 8px;
+          max-height: 400px;
+          object-fit: contain;
         }
       `}} />
     </div>

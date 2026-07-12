@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square } from 'lucide-react';
+import { Send, Square, Paperclip, X, FileText } from 'lucide-react';
 
 const MessageInput = ({ onSend, isGenerating, onStop }) => {
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState([]);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const adjustHeight = () => {
     if (textareaRef.current) {
@@ -23,10 +25,38 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
     }
   };
 
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      
+      if (file.type.startsWith('image/')) {
+        reader.onload = (ev) => {
+          setAttachments(prev => [...prev, { type: 'image', url: ev.target.result, name: file.name }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Read as text
+        reader.onload = (ev) => {
+          setAttachments(prev => [...prev, { type: 'text', content: ev.target.result, name: file.name }]);
+        };
+        reader.readAsText(file);
+      }
+    });
+    
+    e.target.value = null; // Reset
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = () => {
-    if (input.trim() && !isGenerating) {
-      onSend(input.trim());
+    if ((input.trim() || attachments.length > 0) && !isGenerating) {
+      onSend({ text: input.trim(), attachments });
       setInput('');
+      setAttachments([]);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -35,7 +65,44 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
 
   return (
     <div className="message-input-container">
+      {attachments.length > 0 && (
+        <div className="attachments-preview">
+          {attachments.map((att, index) => (
+            <div key={index} className="attachment-item">
+              <button className="remove-btn" onClick={() => removeAttachment(index)}>
+                <X size={14} />
+              </button>
+              {att.type === 'image' ? (
+                <img src={att.url} alt={att.name} className="attachment-img" />
+              ) : (
+                <div className="attachment-doc">
+                  <FileText size={24} />
+                  <span className="doc-name">{att.name}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="glass-panel input-wrapper">
+        <input 
+          type="file" 
+          multiple 
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+          accept="image/*,.txt,.md,.csv,.json,.js,.py,.html,.css"
+        />
+        <button 
+          className="attach-btn" 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isGenerating}
+          title="Attach file"
+        >
+          <Paperclip size={20} />
+        </button>
+
         <textarea
           ref={textareaRef}
           value={input}
@@ -53,7 +120,7 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           <button 
             className="send-btn" 
             onClick={handleSend} 
-            disabled={!input.trim()}
+            disabled={!input.trim() && attachments.length === 0}
           >
             <Send size={18} />
           </button>
@@ -66,6 +133,71 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           max-width: 800px;
           width: 100%;
           margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .attachments-preview {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          padding: 0 16px;
+        }
+        .attachment-item {
+          position: relative;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid var(--panel-border);
+          border-radius: 12px;
+          width: 80px;
+          height: 80px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .attachment-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .attachment-doc {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          padding: 8px;
+          color: var(--text-secondary);
+        }
+        .doc-name {
+          font-size: 0.65rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          width: 100%;
+          text-align: center;
+        }
+        .remove-btn {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          background: rgba(0,0,0,0.6);
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        .attachment-item:hover .remove-btn {
+          opacity: 1;
+        }
+        .remove-btn:hover {
+          background: #ff6b6b;
         }
         .input-wrapper {
           display: flex;
@@ -79,6 +211,25 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           border-color: var(--accent-color);
           box-shadow: 0 0 0 1px var(--accent-color), 0 8px 32px 0 rgba(0, 0, 0, 0.3);
         }
+        .attach-btn {
+          background: transparent;
+          color: var(--text-secondary);
+          border: none;
+          padding: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s;
+          margin-bottom: 2px;
+        }
+        .attach-btn:hover {
+          color: var(--text-primary);
+        }
+        .attach-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
         textarea {
           flex: 1;
           background: transparent;
@@ -89,7 +240,7 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           resize: none;
           max-height: 200px;
           outline: none;
-          padding: 0;
+          padding: 8px 0;
           margin: 0;
           line-height: 1.5;
         }
@@ -109,6 +260,7 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           cursor: pointer;
           transition: all 0.2s;
           flex-shrink: 0;
+          margin-bottom: 2px;
         }
         .send-btn:disabled {
           background: rgba(255, 255, 255, 0.1);

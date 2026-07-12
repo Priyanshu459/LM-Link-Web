@@ -46,7 +46,7 @@ function App() {
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  const handleSend = async (content) => {
+  const handleSend = async ({ text, attachments }) => {
     if (!selectedModel || !activeChatId) {
       alert("Please select a model in settings first, and ensure a chat is selected.");
       return;
@@ -54,7 +54,32 @@ function App() {
 
     abortControllerRef.current = new AbortController();
     const currentChatId = activeChatId;
-    const newUserMessage = { role: 'user', content };
+
+    // Process attachments
+    let finalContent = text;
+    let imageAttachments = [];
+    
+    if (attachments && attachments.length > 0) {
+      attachments.forEach(att => {
+        if (att.type === 'text') {
+          finalContent += `\\n\\n--- Attached File: ${att.name} ---\\n${att.content}`;
+        } else if (att.type === 'image') {
+          imageAttachments.push(att.url);
+        }
+      });
+    }
+
+    let newUserMessage = { role: 'user', content: finalContent };
+    
+    if (imageAttachments.length > 0) {
+      // OpenAI Vision API format
+      const contentArray = [{ type: 'text', text: finalContent }];
+      imageAttachments.forEach(imgUrl => {
+        contentArray.push({ type: 'image_url', image_url: { url: imgUrl } });
+      });
+      newUserMessage = { role: 'user', content: contentArray };
+    }
+
     addMessage(currentChatId, newUserMessage);
 
     const newAssistantMessage = { role: 'assistant', content: '' };
