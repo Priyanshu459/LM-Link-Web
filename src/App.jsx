@@ -62,7 +62,7 @@ function App() {
     if (attachments && attachments.length > 0) {
       attachments.forEach(att => {
         if (att.type === 'text') {
-          finalContent += `\n\n--- Attached File: ${att.name} ---\n${att.content}`;
+          finalContent += `\n\n[SYSTEM: The user has attached a document named "${att.name}". Its extracted text content is provided below. Read it carefully to answer the user's request.]\n\n<file_content>\n${att.content}\n</file_content>`;
         } else if (att.type === 'image') {
           imageAttachments.push(att.url);
         }

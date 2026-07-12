@@ -86,6 +86,7 @@ const ChatInterface = ({ messages }) => {
         }
         .message-row {
           display: flex;
+          align-items: flex-start;
           gap: 16px;
           max-width: 800px;
           width: 100%;
