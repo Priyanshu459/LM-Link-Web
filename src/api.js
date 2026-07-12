@@ -15,8 +15,27 @@ export const fetchModels = async (baseUrl) => {
   }
 };
 
-export const sendChatCompletion = async (baseUrl, model, messages, onChunk) => {
+export const pingServer = async (baseUrl) => {
   try {
+    const url = new URL(baseUrl);
+    const response = await fetch(`/api-proxy${url.pathname}/models`, {
+      headers: { 'x-proxy-target': url.origin }
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+};
+
+export const sendChatCompletion = async (baseUrl, model, messages, options, onChunk) => {
+  try {
+    const { temperature = 0.7, max_tokens = 2048, systemPrompt = '' } = options;
+    
+    // Prepend system prompt if provided
+    const finalMessages = systemPrompt 
+      ? [{ role: 'system', content: systemPrompt }, ...messages]
+      : messages;
+
     const url = new URL(baseUrl);
     const response = await fetch(`/api-proxy${url.pathname}/chat/completions`, {
       method: 'POST',
@@ -26,8 +45,9 @@ export const sendChatCompletion = async (baseUrl, model, messages, onChunk) => {
       },
       body: JSON.stringify({
         model: model,
-        messages: messages,
-        temperature: 0.7,
+        messages: finalMessages,
+        temperature: parseFloat(temperature),
+        max_tokens: parseInt(max_tokens, 10) || undefined,
         stream: true,
       }),
     });

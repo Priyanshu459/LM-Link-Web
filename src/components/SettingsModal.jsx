@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { X, Server, RefreshCw } from 'lucide-react';
 import { fetchModels } from '../api';
+import { useStore } from '../store';
 
-const SettingsModal = ({ isOpen, onClose, baseUrl, setBaseUrl, selectedModel, setSelectedModel }) => {
+const SettingsModal = ({ isOpen, onClose }) => {
+  const { baseUrl, selectedModel, temperature, maxTokens, systemPrompt, setSettings } = useStore();
   const [models, setModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [tempUrl, setTempUrl] = useState(baseUrl);
   const [error, setError] = useState('');
+
+  // Local state for edits
+  const [tempUrl, setTempUrl] = useState(baseUrl);
+  const [tempModel, setTempModel] = useState(selectedModel);
+  const [tempSystemPrompt, setTempSystemPrompt] = useState(systemPrompt);
+  const [tempTemp, setTempTemp] = useState(temperature);
+  const [tempMaxTokens, setTempMaxTokens] = useState(maxTokens);
 
   const loadModels = async (urlToFetch) => {
     setLoadingModels(true);
@@ -14,8 +22,8 @@ const SettingsModal = ({ isOpen, onClose, baseUrl, setBaseUrl, selectedModel, se
     try {
       const fetchedModels = await fetchModels(urlToFetch);
       setModels(fetchedModels);
-      if (fetchedModels.length > 0 && !selectedModel) {
-        setSelectedModel(fetchedModels[0].id);
+      if (fetchedModels.length > 0 && !tempModel) {
+        setTempModel(fetchedModels[0].id);
       }
     } catch (err) {
       setError('Could not connect to LM Studio. Check your URL and make sure the server is running.');
@@ -28,14 +36,23 @@ const SettingsModal = ({ isOpen, onClose, baseUrl, setBaseUrl, selectedModel, se
   useEffect(() => {
     if (isOpen) {
       setTempUrl(baseUrl);
+      setTempModel(selectedModel);
+      setTempSystemPrompt(systemPrompt);
+      setTempTemp(temperature);
+      setTempMaxTokens(maxTokens);
       loadModels(baseUrl);
     }
-  }, [isOpen, baseUrl]);
+  }, [isOpen, baseUrl, selectedModel, systemPrompt, temperature, maxTokens]);
 
   const handleSave = () => {
-    // Basic validation to remove trailing slash if any
     const cleanUrl = tempUrl.trim().replace(/\/$/, '');
-    setBaseUrl(cleanUrl);
+    setSettings({
+      baseUrl: cleanUrl,
+      selectedModel: tempModel,
+      systemPrompt: tempSystemPrompt,
+      temperature: parseFloat(tempTemp),
+      maxTokens: parseInt(tempMaxTokens, 10)
+    });
     onClose();
   };
 
@@ -43,7 +60,7 @@ const SettingsModal = ({ isOpen, onClose, baseUrl, setBaseUrl, selectedModel, se
 
   return (
     <div className="modal-overlay">
-      <div className="glass-panel modal-content">
+      <div className="glass-panel modal-content" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-title">
           <span><Server size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }}/> LM Studio Settings</span>
           <button className="btn-icon" onClick={onClose}><X size={20} /></button>
@@ -57,40 +74,52 @@ const SettingsModal = ({ isOpen, onClose, baseUrl, setBaseUrl, selectedModel, se
               className="input-field" 
               value={tempUrl}
               onChange={(e) => setTempUrl(e.target.value)}
-              placeholder="e.g., http://localhost:1234/v1 or https://xyz.lmlink.network/v1"
+              placeholder="e.g., http://localhost:1234/v1"
             />
             <button 
               className="btn-icon glass-panel" 
               onClick={() => loadModels(tempUrl)}
               disabled={loadingModels}
-              title="Test Connection & Fetch Models"
             >
               <RefreshCw size={18} className={loadingModels ? "spin" : ""} />
             </button>
           </div>
-          <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '4px', fontSize: '0.75rem' }}>
-            Ensure your local server is running in LM Studio.
-          </small>
         </div>
 
-        {error && <div style={{ color: '#ff6b6b', marginTop: '12px', fontSize: '0.85rem', background: 'rgba(255, 0, 0, 0.1)', padding: '8px', borderRadius: '4px' }}>{error}</div>}
+        {error && <div style={{ color: '#ff6b6b', marginTop: '12px', fontSize: '0.85rem' }}>{error}</div>}
 
         <div style={{ marginTop: '16px' }}>
           <label className="input-label">Select Model</label>
           <select 
             className="input-field"
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
+            value={tempModel}
+            onChange={(e) => setTempModel(e.target.value)}
             disabled={models.length === 0}
           >
-            {models.length === 0 ? (
-              <option value="">No models available</option>
-            ) : (
-              models.map(model => (
-                <option key={model.id} value={model.id}>{model.id}</option>
-              ))
-            )}
+            {models.length === 0 ? <option value="">No models available</option> : models.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
           </select>
+        </div>
+
+        <div style={{ marginTop: '16px' }}>
+          <label className="input-label">System Prompt</label>
+          <textarea 
+            className="input-field" 
+            rows="3" 
+            value={tempSystemPrompt}
+            onChange={(e) => setTempSystemPrompt(e.target.value)}
+            placeholder="e.g., You are a helpful AI assistant."
+          />
+        </div>
+
+        <div style={{ marginTop: '16px', display: 'flex', gap: '16px' }}>
+          <div style={{ flex: 1 }}>
+            <label className="input-label">Temperature: {tempTemp}</label>
+            <input type="range" min="0" max="2" step="0.1" value={tempTemp} onChange={(e) => setTempTemp(e.target.value)} style={{ width: '100%' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="input-label">Max Tokens: {tempMaxTokens}</label>
+            <input type="number" className="input-field" value={tempMaxTokens} onChange={(e) => setTempMaxTokens(e.target.value)} />
+          </div>
         </div>
 
         <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
