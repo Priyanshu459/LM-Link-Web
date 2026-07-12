@@ -14,7 +14,6 @@
     "localforage": "^1.10.0",
     "lucide-react": "^1.24.0",
     "marked": "^18.0.6",
-    "pdfjs-dist": "^6.1.200",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "uuid": "^14.0.1",
