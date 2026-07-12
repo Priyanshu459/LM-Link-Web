@@ -25,25 +25,44 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
     }
   };
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
     
-    files.forEach(file => {
-      const reader = new FileReader();
-      
+    for (const file of files) {
       if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
         reader.onload = (ev) => {
           setAttachments(prev => [...prev, { type: 'image', url: ev.target.result, name: file.name }]);
         };
         reader.readAsDataURL(file);
+      } else if (file.type === 'application/pdf') {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+          const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs?url');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+          
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let text = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ') + '\\n';
+          }
+          setAttachments(prev => [...prev, { type: 'text', content: text, name: file.name }]);
+        } catch (error) {
+          console.error("Error parsing PDF:", error);
+          alert("Failed to parse PDF. Please ensure it is a valid text-based PDF.");
+        }
       } else {
         // Read as text
+        const reader = new FileReader();
         reader.onload = (ev) => {
           setAttachments(prev => [...prev, { type: 'text', content: ev.target.result, name: file.name }]);
         };
         reader.readAsText(file);
       }
-    });
+    }
     
     e.target.value = null; // Reset
   };
@@ -92,7 +111,7 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           ref={fileInputRef}
           style={{ display: 'none' }}
           onChange={handleFileSelect}
-          accept="image/*,.txt,.md,.csv,.json,.js,.py,.html,.css"
+          accept="image/*,.txt,.md,.csv,.json,.js,.py,.html,.css,.pdf"
         />
         <button 
           className="attach-btn" 
