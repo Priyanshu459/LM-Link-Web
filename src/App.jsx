@@ -57,6 +57,23 @@ function App() {
     };
   }, [baseUrl, setIsServerOnline]);
 
+  // Handle Android physical back button
+  useEffect(() => {
+    if (!isSidebarOpen && window.innerWidth <= 768) {
+      window.history.pushState({ sidebar: false }, '');
+    }
+  }, [isSidebarOpen]);
+
+  useEffect(() => {
+    const handlePopState = (e) => {
+      if (window.innerWidth <= 768) {
+        setSidebarOpen(true);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setSidebarOpen]);
+
   const activeChat = chats.find(c => c.id === activeChatId);
 
   const handleSend = async ({ text, attachments }) => {
@@ -222,9 +239,10 @@ function App() {
       <style dangerouslySetInnerHTML={{__html: `
         .app-layout {
           display: flex;
-          height: 100vh;
+          flex: 1;
           width: 100vw;
           overflow: hidden;
+          min-height: 0;
         }
         .main-content {
           flex: 1;
