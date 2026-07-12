@@ -52,6 +52,7 @@ function App() {
       return;
     }
 
+    abortControllerRef.current = new AbortController();
     const currentChatId = activeChatId;
     const newUserMessage = { role: 'user', content };
     addMessage(currentChatId, newUserMessage);
@@ -84,7 +85,7 @@ function App() {
         console.log('Generation stopped by user');
       } else {
         console.error('Chat error:', error);
-        updateLastMessage(currentChatId, '\\n\\n**[Error connecting to LM Studio]**');
+        updateLastMessage(currentChatId, `\n\n**[Error: ${error.message}]**`);
       }
       finalizeMessage();
     } finally {
@@ -162,6 +163,50 @@ function App() {
           flex-direction: column;
           height: 100%;
           min-width: 0;
+        }
+        .app-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 24px;
+          border-bottom: 1px solid var(--panel-border);
+          flex-shrink: 0;
+          border-radius: 0;
+          border-top: none;
+          border-left: none;
+          border-right: none;
+        }
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        .logo {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .logo h1 {
+          font-size: 1.2rem;
+          font-weight: 600;
+          margin: 0;
+        }
+        .status-badge {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 0.8rem;
+          padding: 4px 8px;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.05);
+        }
+        .status-badge.online { color: #4ade80; }
+        .status-badge.offline { color: #ff6b6b; }
+        .chat-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
         }
         .empty-state {
           flex: 1;
