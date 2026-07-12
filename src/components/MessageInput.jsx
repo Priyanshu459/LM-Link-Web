@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, Paperclip, X, FileText } from 'lucide-react';
+import { Send, Square, Paperclip, X, FileText, Mic } from 'lucide-react';
 
 const MessageInput = ({ onSend, isGenerating, onStop }) => {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState([]);
+  const [isListening, setIsListening] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const adjustHeight = () => {
     if (textareaRef.current) {
@@ -31,6 +33,65 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
   useEffect(() => {
     adjustHeight();
   }, [input]);
+
+  useEffect(() => {
+    // Initialize Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setInput(prev => (prev + ' ' + finalTranscript).trim());
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Voice input is not supported in this browser.");
+      return;
+    }
+    
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+      if (navigator.vibrate) navigator.vibrate(50);
+    }
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -143,6 +204,15 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           title="Attach file"
         >
           <Paperclip size={20} />
+        </button>
+
+        <button 
+          className={`attach-btn mic-btn ${isListening ? 'listening' : ''}`} 
+          onClick={toggleListening}
+          disabled={isGenerating}
+          title="Voice input"
+        >
+          <Mic size={20} color={isListening ? "#ff6b6b" : "currentColor"} />
         </button>
 
         <textarea
@@ -271,6 +341,14 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
         .attach-btn:disabled {
           cursor: not-allowed;
           opacity: 0.5;
+        }
+        .mic-btn.listening {
+          animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
         }
         textarea {
           flex: 1;

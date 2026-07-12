@@ -13,6 +13,22 @@
   --glass-blur: 12px;
 }
 
+.offline-banner {
+  background: #ff6b6b;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  z-index: 1000;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

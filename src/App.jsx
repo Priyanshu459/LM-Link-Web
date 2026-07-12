@@ -10,6 +10,7 @@ import './App.css';
 
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNetworkOffline, setIsNetworkOffline] = useState(!navigator.onLine);
   const abortControllerRef = useRef(null);
   const { 
     baseUrl, 
@@ -43,7 +44,17 @@ function App() {
     };
     checkServer();
     const intervalId = setInterval(checkServer, 10000);
-    return () => clearInterval(intervalId);
+
+    const handleOnline = () => setIsNetworkOffline(false);
+    const handleOffline = () => setIsNetworkOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, [baseUrl, setIsServerOnline]);
 
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -88,6 +99,9 @@ function App() {
     addMessage(currentChatId, newAssistantMessage);
 
     setIsGenerating(true);
+    
+    // Haptic feedback for send
+    if (navigator.vibrate) navigator.vibrate(50);
 
     try {
       // Create context from activeChat.messages (which does not include the ones we just added to the store asynchronously)
@@ -107,12 +121,16 @@ function App() {
         abortControllerRef.current.signal
       );
       finalizeMessage();
+      // Haptic feedback for completion
+      if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('Generation stopped by user');
       } else {
         console.error('Chat error:', error);
         updateLastMessage(currentChatId, `\n\n**[Error: ${error.message}]**`);
+        // Haptic feedback for error
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
       }
       finalizeMessage();
     } finally {
@@ -130,6 +148,11 @@ function App() {
 
   return (
     <div className="app-container">
+      {isNetworkOffline && (
+        <div className="offline-banner">
+          ⚠️ No Internet Connection. Waiting for network...
+        </div>
+      )}
       <div className="app-layout">
         <Sidebar />
         
