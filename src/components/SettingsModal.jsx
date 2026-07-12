@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Server, RefreshCw } from 'lucide-react';
+import { X, Server, RefreshCw, HelpCircle } from 'lucide-react';
+import SetupGuideModal from './SetupGuideModal';
 import { fetchModels } from '../api';
 import { useStore } from '../store';
 
@@ -8,6 +9,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
   const [models, setModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState('');
+  const [isSetupGuideOpen, setIsSetupGuideOpen] = useState(false);
 
   // Local state for edits
   const [tempUrl, setTempUrl] = useState(baseUrl);
@@ -86,7 +88,28 @@ const SettingsModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {error && <div style={{ color: '#ff6b6b', marginTop: '12px', fontSize: '0.85rem' }}>{error}</div>}
+        {error && (
+          <div style={{ color: '#ff6b6b', marginTop: '12px', fontSize: '0.85rem' }}>
+            {error}
+          </div>
+        )}
+
+        <button 
+          onClick={() => setIsSetupGuideOpen(true)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--accent-color)',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+            marginTop: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <HelpCircle size={14} /> Need help connecting? Click here!
+        </button>
 
         <div style={{ marginTop: '16px' }}>
           <label className="input-label">Select Model</label>
@@ -131,6 +154,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
       `}} />
+
+      <SetupGuideModal isOpen={isSetupGuideOpen} onClose={() => setIsSetupGuideOpen(false)} />
     </div>
   );
 };

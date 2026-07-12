@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Zap, ZapOff, Menu } from 'lucide-react';
+import { Settings, Zap, ZapOff, Menu, MessageSquare, PlusCircle } from 'lucide-react';
 import ChatInterface from './components/ChatInterface';
 import MessageInput from './components/MessageInput';
 import SettingsModal from './components/SettingsModal';
@@ -136,7 +136,7 @@ function App() {
         <div className="main-content">
           <header className="app-header glass-panel">
             <div className="header-left">
-              <button className="btn-icon mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+              <button className="btn-icon desktop-menu-btn" onClick={() => setSidebarOpen(true)}>
                 <Menu size={20} />
               </button>
               <div className="logo">
@@ -173,6 +173,22 @@ function App() {
             )}
           </main>
         </div>
+      </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="mobile-bottom-nav glass-panel">
+        <button className="nav-item" onClick={() => setSidebarOpen(true)}>
+          <MessageSquare size={24} />
+          <span>Chats</span>
+        </button>
+        <button className="nav-item" onClick={() => useStore.getState().createChat()}>
+          <PlusCircle size={24} />
+          <span>New Chat</span>
+        </button>
+        <button className="nav-item" onClick={() => setIsSettingsOpen(true)}>
+          <Settings size={24} />
+          <span>Settings</span>
+        </button>
       </div>
 
       <SettingsModal 
