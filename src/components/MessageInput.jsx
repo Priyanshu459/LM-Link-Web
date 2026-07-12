@@ -321,6 +321,25 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
         .send-btn.stop:hover {
           background: rgba(255,255,255,0.1);
         }
+        
+        @media (max-width: 768px) {
+          .message-input-container {
+            padding: 12px;
+          }
+          .input-wrapper {
+            padding: 8px 12px;
+            border-radius: 20px;
+            gap: 8px;
+          }
+          .attach-btn, .send-btn {
+            width: 32px;
+            height: 32px;
+            padding: 6px;
+          }
+          textarea {
+            font-size: 0.95rem;
+          }
+        }
       `}} />
     </div>
   );
