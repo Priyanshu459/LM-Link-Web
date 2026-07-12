@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Zap, ZapOff } from 'lucide-react';
+import { Settings, Zap, ZapOff, Menu } from 'lucide-react';
 import ChatInterface from './components/ChatInterface';
 import MessageInput from './components/MessageInput';
 import SettingsModal from './components/SettingsModal';
@@ -26,7 +26,9 @@ function App() {
     updateLastMessage,
     finalizeMessage,
     isGenerating,
-    setIsGenerating
+    setIsGenerating,
+    isSidebarOpen,
+    setSidebarOpen
   } = useStore();
 
   useEffect(() => {
@@ -134,6 +136,9 @@ function App() {
         <div className="main-content">
           <header className="app-header glass-panel">
             <div className="header-left">
+              <button className="btn-icon mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+                <Menu size={20} />
+              </button>
               <div className="logo">
                 <span className="logo-icon">✨</span>
                 <h1>LM Link</h1>
@@ -151,7 +156,7 @@ function App() {
           <main className="chat-container">
             {activeChat ? (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                <ChatInterface messages={activeChat.messages} />
+                <ChatInterface messages={activeChat.messages} isGenerating={isGenerating} />
                 <div style={{ padding: '0 20px 20px 20px', flexShrink: 0 }}>
                   <MessageInput 
                     onSend={handleSend}

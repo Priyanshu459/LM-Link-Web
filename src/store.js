@@ -22,8 +22,10 @@ export const useStore = create((set, get) => ({
   // App State
   isGenerating: false,
   isServerOnline: true,
+  isSidebarOpen: false,
 
   // Actions
+  setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
   setSettings: (settings) => {
     set((state) => ({ ...state, ...settings }));
     get().saveToStorage();

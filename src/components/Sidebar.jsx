@@ -1,21 +1,30 @@
 import React from 'react';
 import { useStore } from '../store';
-import { Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, X } from 'lucide-react';
 
 const Sidebar = () => {
-  const { chats, activeChatId, createChat, setActiveChatId, deleteChat } = useStore();
+  const { chats, activeChatId, createChat, setActiveChatId, deleteChat, isSidebarOpen, setSidebarOpen } = useStore();
 
   return (
-    <div className="sidebar glass-panel">
-      <button className="btn-primary new-chat-btn" onClick={createChat}>
-        <Plus size={18} /> New Chat
-      </button>
+    <>
+    <div className={`sidebar glass-panel ${isSidebarOpen ? 'mobile-open' : ''}`}>
+      <div className="sidebar-header">
+        <button className="btn-primary new-chat-btn" onClick={() => { createChat(); setSidebarOpen(false); }}>
+          <Plus size={18} /> New Chat
+        </button>
+        <button className="mobile-close-btn" onClick={() => setSidebarOpen(false)}>
+          <X size={20} />
+        </button>
+      </div>
       <div className="chat-list">
         {chats.map(chat => (
           <div 
             key={chat.id} 
             className={`chat-item ${chat.id === activeChatId ? 'active' : ''}`}
-            onClick={() => setActiveChatId(chat.id)}
+            onClick={() => {
+              setActiveChatId(chat.id);
+              setSidebarOpen(false);
+            }}
           >
             <MessageSquare size={16} className="chat-icon" />
             <span className="chat-title" title={chat.title}>{chat.title || 'New Chat'}</span>
@@ -100,6 +109,8 @@ const Sidebar = () => {
         }
       `}} />
     </div>
+    {isSidebarOpen && <div className="mobile-overlay" onClick={() => setSidebarOpen(false)} />}
+    </>
   );
 };
 

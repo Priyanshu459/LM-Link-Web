@@ -3,15 +3,24 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { User, Cpu } from 'lucide-react';
 
-const ChatInterface = ({ messages }) => {
+const ChatInterface = ({ messages, isGenerating }) => {
   const bottomRef = useRef(null);
+  const containerRef = useRef(null);
+  const [autoScroll, setAutoScroll] = React.useState(true);
+
+  const handleScroll = () => {
+    if (containerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      setAutoScroll(isAtBottom);
+    }
+  };
 
   useEffect(() => {
-    // Only auto-scroll if we are near the bottom to avoid pulling the user down when they scroll up
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'auto' });
+    if (autoScroll && bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, isGenerating, autoScroll]);
 
   const renderMarkdown = (text) => {
     const html = marked(text, { breaks: true });
@@ -46,8 +55,11 @@ const ChatInterface = ({ messages }) => {
     );
   }
 
+  const lastMessage = messages[messages.length - 1];
+  const showTypingIndicator = isGenerating && lastMessage && lastMessage.role === 'user';
+
   return (
-    <div className="chat-interface">
+    <div className="chat-interface" ref={containerRef} onScroll={handleScroll}>
       {messages.map((msg, idx) => (
         <div key={idx} className={`message-row ${msg.role}`}>
           <div className="avatar">
@@ -73,7 +85,21 @@ const ChatInterface = ({ messages }) => {
           </div>
         </div>
       ))}
-      <div ref={bottomRef} />
+      
+      {showTypingIndicator && (
+        <div className="message-row assistant">
+          <div className="avatar">
+            <Cpu size={20} />
+          </div>
+          <div className="message-content">
+            <div className="bubble ai-bubble typing-indicator">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div ref={bottomRef} style={{ height: '1px' }} />
 
       <style dangerouslySetInnerHTML={{__html: `
         .chat-interface {
@@ -145,6 +171,21 @@ const ChatInterface = ({ messages }) => {
           border-radius: 8px;
           max-height: 400px;
           object-fit: contain;
+        }
+        .typing-indicator span {
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          background-color: var(--text-secondary);
+          border-radius: 50%;
+          margin: 0 2px;
+          animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0); }
+          40% { transform: scale(1); }
         }
       `}} />
     </div>
