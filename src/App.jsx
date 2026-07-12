@@ -75,12 +75,17 @@ function App() {
         options,
         (chunk) => {
           updateLastMessage(currentChatId, chunk);
-        }
+        },
+        abortControllerRef.current.signal
       );
       finalizeMessage();
     } catch (error) {
-      console.error('Chat error:', error);
-      updateLastMessage(currentChatId, '\\n\\n**[Error connecting to LM Studio]**');
+      if (error.name === 'AbortError') {
+        console.log('Generation stopped by user');
+      } else {
+        console.error('Chat error:', error);
+        updateLastMessage(currentChatId, '\\n\\n**[Error connecting to LM Studio]**');
+      }
       finalizeMessage();
     } finally {
       setIsGenerating(false);
@@ -88,6 +93,9 @@ function App() {
   };
 
   const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setIsGenerating(false);
     finalizeMessage();
   };
@@ -116,9 +124,9 @@ function App() {
 
           <main className="chat-container">
             {activeChat ? (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <ChatInterface messages={activeChat.messages} />
-                <div style={{ padding: '0 20px 20px 20px' }}>
+                <div style={{ padding: '0 20px 20px 20px', flexShrink: 0 }}>
                   <MessageInput 
                     onSend={handleSend}
                     isGenerating={isGenerating}
@@ -153,6 +161,7 @@ function App() {
           display: flex;
           flex-direction: column;
           height: 100%;
+          min-width: 0;
         }
         .empty-state {
           flex: 1;

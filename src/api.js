@@ -27,7 +27,7 @@ export const pingServer = async (baseUrl) => {
   }
 };
 
-export const sendChatCompletion = async (baseUrl, model, messages, options, onChunk) => {
+export const sendChatCompletion = async (baseUrl, model, messages, options, onChunk, signal) => {
   try {
     const { temperature = 0.7, max_tokens = 2048, systemPrompt = '' } = options;
     
@@ -43,6 +43,7 @@ export const sendChatCompletion = async (baseUrl, model, messages, options, onCh
         'Content-Type': 'application/json',
         'x-proxy-target': url.origin
       },
+      signal,
       body: JSON.stringify({
         model: model,
         messages: finalMessages,

@@ -7,7 +7,10 @@ const ChatInterface = ({ messages }) => {
   const bottomRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only auto-scroll if we are near the bottom to avoid pulling the user down when they scroll up
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'auto' });
+    }
   }, [messages]);
 
   const renderMarkdown = (text) => {
@@ -67,6 +70,7 @@ const ChatInterface = ({ messages }) => {
           padding: 20px 0;
           display: flex;
           flex-direction: column;
+          min-height: 0;
         }
         .message-row {
           display: flex;

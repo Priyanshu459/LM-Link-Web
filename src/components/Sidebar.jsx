@@ -35,6 +35,7 @@ const Sidebar = () => {
       <style dangerouslySetInnerHTML={{__html: `
         .sidebar {
           width: 260px;
+          flex-shrink: 0;
           display: flex;
           flex-direction: column;
           border-radius: 0;
