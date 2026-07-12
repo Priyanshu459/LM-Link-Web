@@ -1,10 +1,28 @@
+const getEndpoint = (baseUrl, path) => {
+  if (import.meta.env.DEV) {
+    const url = new URL(baseUrl);
+    return `/api-proxy${url.pathname}${path}`;
+  }
+  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return `${cleanBaseUrl}${path}`;
+};
+
+const getHeaders = (baseUrl, extraHeaders = {}) => {
+  const headers = {
+    'ngrok-skip-browser-warning': 'true',
+    ...extraHeaders
+  };
+  if (import.meta.env.DEV) {
+    const url = new URL(baseUrl);
+    headers['x-proxy-target'] = url.origin;
+  }
+  return headers;
+};
+
 export const fetchModels = async (baseUrl) => {
   try {
-    const url = new URL(baseUrl);
-    const response = await fetch(`/api-proxy${url.pathname}/models`, {
-      headers: {
-        'x-proxy-target': url.origin
-      }
+    const response = await fetch(getEndpoint(baseUrl, '/models'), {
+      headers: getHeaders(baseUrl)
     });
     if (!response.ok) throw new Error('Failed to fetch models');
     const data = await response.json();
@@ -17,9 +35,8 @@ export const fetchModels = async (baseUrl) => {
 
 export const pingServer = async (baseUrl) => {
   try {
-    const url = new URL(baseUrl);
-    const response = await fetch(`/api-proxy${url.pathname}/models`, {
-      headers: { 'x-proxy-target': url.origin }
+    const response = await fetch(getEndpoint(baseUrl, '/models'), {
+      headers: getHeaders(baseUrl)
     });
     return response.ok;
   } catch (error) {
@@ -36,13 +53,11 @@ export const sendChatCompletion = async (baseUrl, model, messages, options, onCh
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : messages;
 
-    const url = new URL(baseUrl);
-    const response = await fetch(`/api-proxy${url.pathname}/chat/completions`, {
+    const response = await fetch(getEndpoint(baseUrl, '/chat/completions'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-proxy-target': url.origin
-      },
+      headers: getHeaders(baseUrl, {
+        'Content-Type': 'application/json'
+      }),
       signal,
       body: JSON.stringify({
         model: model,
