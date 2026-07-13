@@ -197,16 +197,14 @@ function App() {
 
           <main className="chat-container">
             {activeChat ? (
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <>
                 <ChatInterface messages={activeChat.messages} isGenerating={isGenerating} />
-                <div style={{ padding: '0 20px 20px 20px', flexShrink: 0 }}>
-                  <MessageInput 
-                    onSend={handleSend}
-                    isGenerating={isGenerating}
-                    onStop={handleStop}
-                  />
-                </div>
-              </div>
+                <MessageInput
+                  onSend={handleSend}
+                  isGenerating={isGenerating}
+                  onStop={handleStop}
+                />
+              </>
             ) : (
               <div className="empty-state">
                 <div className="empty-icon">✨</div>
@@ -220,22 +218,22 @@ function App() {
       {/* Mobile Bottom Navigation Bar */}
       <div className="mobile-bottom-nav glass-panel">
         <button className="nav-item" onClick={() => setSidebarOpen(true)}>
-          <MessageSquare size={24} />
+          <MessageSquare size={22} />
           <span>Chats</span>
         </button>
         <button className="nav-item" onClick={() => useStore.getState().createChat()}>
-          <PlusCircle size={24} />
+          <PlusCircle size={22} />
           <span>New Chat</span>
         </button>
         <button className="nav-item" onClick={() => setIsSettingsOpen(true)}>
-          <Settings size={24} />
+          <Settings size={22} />
           <span>Settings</span>
         </button>
       </div>
 
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
 
 
