@@ -458,6 +458,10 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 10px;
+  /* Force GPU layer so overflow:hidden properly clips
+     transform-animated children (known browser quirk) */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .chat-item {
@@ -506,16 +510,24 @@ body {
 .chat-item:hover .delete-btn { opacity: 1; }
 .delete-btn:hover { color: #ff6b6b; background: rgba(255,107,107,0.1); }
 
+/* Delete background — hidden by default, only shown on touch screens */
 .mobile-delete-bg {
-  position: absolute;
-  top: 0; right: 0; bottom: 0;
-  width: 64px;
-  background: #ff3b30;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1;
-  border-radius: 10px;
+  display: none;
+}
+
+/* Only enable swipe-to-delete on real touch devices */
+@media (pointer: coarse) {
+  .mobile-delete-bg {
+    display: flex;
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 64px;
+    background: #ff3b30;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    /* No border-radius — let the container clip it cleanly */
+  }
 }
 
 .mobile-delete-btn {
