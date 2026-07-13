@@ -1,5 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Square, Paperclip, X, FileText, Mic } from 'lucide-react';
+// ── Security: Import pdfjs-dist statically instead of dynamically injecting
+//              a <script> tag from a CDN at runtime (supply-chain attack vector).
+import * as pdfjs from 'pdfjs-dist';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+// Configure the worker once at module load
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+
+// ── Security: File upload limits ─────────────────────────────────────────────
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'text/plain', 'text/markdown', 'text/csv', 'application/json',
+  'application/javascript', 'text/javascript',
+  'text/x-python', 'text/html', 'text/css',
+  'application/pdf',
+]);
+// Map from allowed extensions (from the <input accept> attr) to allowed MIME types
+const ALLOWED_EXTENSIONS = /\.(jpe?g|png|gif|webp|svg|txt|md|csv|json|js|py|html|css|pdf)$/i;
 
 const MessageInput = ({ onSend, isGenerating, onStop }) => {
   const [input, setInput] = useState('');
@@ -16,20 +35,6 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
     }
   };
 
-  const loadPdfJs = async () => {
-    if (window.pdfjsLib) return window.pdfjsLib;
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      script.onload = () => {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        resolve(window.pdfjsLib);
-      };
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  };
-
   useEffect(() => {
     adjustHeight();
   }, [input]);
@@ -41,26 +46,23 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      
+
       recognition.onresult = (event) => {
         let finalTranscript = '';
-        let interimTranscript = '';
-        
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
             finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
           }
         }
-        
+
         if (finalTranscript) {
           setInput(prev => (prev + ' ' + finalTranscript).trim());
         }
       };
 
       recognition.onerror = (event) => {
-        console.error("Speech recognition error:", event.error);
+        if (import.meta.env.DEV) console.error('Speech recognition error:', event.error);
         setIsListening(false);
       };
 
@@ -80,10 +82,10 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      alert("Voice input is not supported in this browser.");
+      alert('Voice input is not supported in this browser.');
       return;
     }
-    
+
     if (isListening) {
       recognitionRef.current.stop();
     } else {
@@ -100,10 +102,33 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
     }
   };
 
+  /**
+   * Validates a file before processing.
+   * Returns an error string or null if valid.
+   */
+  const validateFile = (file) => {
+    // ── Security: Reject oversized files (DoS prevention) ────────────────────
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return `"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 20 MB.`;
+    }
+    // ── Security: Validate MIME type against allowlist ───────────────────────
+    if (!ALLOWED_MIME_TYPES.has(file.type) && !ALLOWED_EXTENSIONS.test(file.name)) {
+      return `"${file.name}" has an unsupported file type (${file.type || 'unknown'}). Please upload images, text, PDF, JSON, or code files.`;
+    }
+    return null;
+  };
+
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
-    
+
     for (const file of files) {
+      // ── Security: Validate before reading ────────────────────────────────
+      const validationError = validateFile(file);
+      if (validationError) {
+        alert(validationError);
+        continue;
+      }
+
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -113,30 +138,25 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
       } else if (file.type === 'application/pdf') {
         try {
           const arrayBuffer = await file.arrayBuffer();
-          const pdfjs = await loadPdfJs();
-          
-          const pdf = await pdfjs.getDocument({
-            data: arrayBuffer,
-            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-            cMapPacked: true,
-          }).promise;
-          
+          // ── Security: Uses local npm pdfjs-dist, NOT a CDN-injected script ──
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+
           let text = '';
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
             text += content.items.map(item => item.str).join(' ') + '\n';
           }
-          
+
           if (!text.trim()) {
             alert(`No text could be extracted from ${file.name}. It might be a scanned image or lack a text layer.`);
-            return;
+            continue;
           }
-          
+
           setAttachments(prev => [...prev, { type: 'text', content: text, name: file.name }]);
         } catch (error) {
-          console.error("Error parsing PDF:", error);
-          alert("Failed to parse PDF. Please ensure it is a valid text-based PDF.");
+          if (import.meta.env.DEV) console.error('Error parsing PDF:', error);
+          alert('Failed to parse PDF. Please ensure it is a valid text-based PDF.');
         }
       } else {
         // Read as text
@@ -147,7 +167,7 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
         reader.readAsText(file);
       }
     }
-    
+
     e.target.value = null; // Reset
   };
 
@@ -189,16 +209,16 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
       )}
 
       <div className="glass-panel input-wrapper">
-        <input 
-          type="file" 
-          multiple 
+        <input
+          type="file"
+          multiple
           ref={fileInputRef}
           style={{ display: 'none' }}
           onChange={handleFileSelect}
           accept="image/*,.txt,.md,.csv,.json,.js,.py,.html,.css,.pdf"
         />
-        <button 
-          className="attach-btn" 
+        <button
+          className="attach-btn"
           onClick={() => fileInputRef.current?.click()}
           disabled={isGenerating}
           title="Attach file"
@@ -206,13 +226,13 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
           <Paperclip size={20} />
         </button>
 
-        <button 
-          className={`attach-btn mic-btn ${isListening ? 'listening' : ''}`} 
+        <button
+          className={`attach-btn mic-btn ${isListening ? 'listening' : ''}`}
           onClick={toggleListening}
           disabled={isGenerating}
           title="Voice input"
         >
-          <Mic size={20} color={isListening ? "#ff6b6b" : "currentColor"} />
+          <Mic size={20} color={isListening ? '#ff6b6b' : 'currentColor'} />
         </button>
 
         <textarea
@@ -229,196 +249,15 @@ const MessageInput = ({ onSend, isGenerating, onStop }) => {
             <Square size={18} fill="currentColor" />
           </button>
         ) : (
-          <button 
-            className="send-btn" 
-            onClick={handleSend} 
+          <button
+            className="send-btn"
+            onClick={handleSend}
             disabled={!input.trim() && attachments.length === 0}
           >
             <Send size={18} />
           </button>
         )}
       </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        .message-input-container {
-          padding: 20px;
-          max-width: 800px;
-          width: 100%;
-          margin: 0 auto;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .attachments-preview {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          padding: 0 16px;
-        }
-        .attachment-item {
-          position: relative;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid var(--panel-border);
-          border-radius: 12px;
-          width: 80px;
-          height: 80px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-        }
-        .attachment-img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .attachment-doc {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-          padding: 8px;
-          color: var(--text-secondary);
-        }
-        .doc-name {
-          font-size: 0.65rem;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          width: 100%;
-          text-align: center;
-        }
-        .remove-btn {
-          position: absolute;
-          top: 4px;
-          right: 4px;
-          background: rgba(0,0,0,0.6);
-          color: white;
-          border: none;
-          border-radius: 50%;
-          width: 20px;
-          height: 20px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          opacity: 0;
-          transition: opacity 0.2s;
-        }
-        .attachment-item:hover .remove-btn {
-          opacity: 1;
-        }
-        .remove-btn:hover {
-          background: #ff6b6b;
-        }
-        .input-wrapper {
-          display: flex;
-          align-items: flex-end;
-          padding: 12px 16px;
-          border-radius: 24px;
-          gap: 12px;
-          transition: border-color 0.3s;
-        }
-        .input-wrapper:focus-within {
-          border-color: var(--accent-color);
-          box-shadow: 0 0 0 1px var(--accent-color), 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        }
-        .attach-btn {
-          background: transparent;
-          color: var(--text-secondary);
-          border: none;
-          padding: 8px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: color 0.2s;
-          margin-bottom: 2px;
-        }
-        .attach-btn:hover {
-          color: var(--text-primary);
-        }
-        .attach-btn:disabled {
-          cursor: not-allowed;
-          opacity: 0.5;
-        }
-        .mic-btn.listening {
-          animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); }
-        }
-        textarea {
-          flex: 1;
-          background: transparent;
-          border: none;
-          color: var(--text-primary);
-          font-family: inherit;
-          font-size: 1rem;
-          resize: none;
-          max-height: 200px;
-          outline: none;
-          padding: 8px 0;
-          margin: 0;
-          line-height: 1.5;
-        }
-        textarea::placeholder {
-          color: var(--text-secondary);
-        }
-        .send-btn {
-          background: var(--accent-color);
-          color: white;
-          border: none;
-          border-radius: 50%;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: all 0.2s;
-          flex-shrink: 0;
-          margin-bottom: 2px;
-        }
-        .send-btn:disabled {
-          background: rgba(255, 255, 255, 0.1);
-          color: var(--text-secondary);
-          cursor: not-allowed;
-        }
-        .send-btn:not(:disabled):hover {
-          background: var(--accent-hover);
-          transform: scale(1.05);
-        }
-        .send-btn.stop {
-          background: transparent;
-          color: var(--text-primary);
-          border: 1px solid var(--text-secondary);
-        }
-        .send-btn.stop:hover {
-          background: rgba(255,255,255,0.1);
-        }
-        
-        @media (max-width: 768px) {
-          .message-input-container {
-            padding: 12px;
-          }
-          .input-wrapper {
-            padding: 8px 12px;
-            border-radius: 20px;
-            gap: 8px;
-          }
-          .attach-btn, .send-btn {
-            width: 32px;
-            height: 32px;
-            padding: 6px;
-          }
-          textarea {
-            font-size: 0.95rem;
-          }
-        }
-      `}} />
     </div>
   );
 };

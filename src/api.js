@@ -1,8 +1,32 @@
+// ── Security: Only allow http/https schemes ──────────────────────────────────
+const ALLOWED_SCHEMES = ['http:', 'https:'];
+const MAX_BUFFER_BYTES = 10 * 1024 * 1024; // 10 MB SSE buffer limit
+
+/**
+ * Validates that a baseUrl uses only http or https.
+ * Throws a TypeError for any other scheme (javascript:, data:, ftp:, etc.)
+ */
+const validateUrl = (baseUrl) => {
+  let parsed;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new TypeError(`Invalid URL: "${baseUrl}"`);
+  }
+  if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
+    throw new TypeError(
+      `Blocked URL with disallowed scheme "${parsed.protocol}". Only http/https are permitted.`
+    );
+  }
+  return parsed;
+};
+
 const getEndpoint = (baseUrl, path) => {
   if (import.meta.env.DEV) {
-    const url = new URL(baseUrl);
+    const url = validateUrl(baseUrl);
     return `/api-proxy${url.pathname}${path}`;
   }
+  validateUrl(baseUrl); // still validate in prod
   const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   return `${cleanBaseUrl}${path}`;
 };
@@ -13,7 +37,8 @@ const getHeaders = (baseUrl, extraHeaders = {}) => {
     ...extraHeaders
   };
   if (import.meta.env.DEV) {
-    const url = new URL(baseUrl);
+    const url = validateUrl(baseUrl);
+    // Only pass the origin — never an arbitrary attacker-supplied value
     headers['x-proxy-target'] = url.origin;
   }
   return headers;
@@ -28,7 +53,7 @@ export const fetchModels = async (baseUrl) => {
     const data = await response.json();
     return data.data || [];
   } catch (error) {
-    console.error('Error fetching models:', error);
+    if (import.meta.env.DEV) console.error('Error fetching models:', error);
     throw error;
   }
 };
@@ -39,7 +64,7 @@ export const pingServer = async (baseUrl) => {
       headers: getHeaders(baseUrl)
     });
     return response.ok;
-  } catch (error) {
+  } catch {
     return false;
   }
 };
@@ -47,9 +72,9 @@ export const pingServer = async (baseUrl) => {
 export const sendChatCompletion = async (baseUrl, model, messages, options, onChunk, signal) => {
   try {
     const { temperature = 0.7, max_tokens = 2048, systemPrompt = '' } = options;
-    
+
     // Prepend system prompt if provided
-    const finalMessages = systemPrompt 
+    const finalMessages = systemPrompt
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : messages;
 
@@ -75,14 +100,22 @@ export const sendChatCompletion = async (baseUrl, model, messages, options, onCh
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    let totalBytesReceived = 0;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
+      // ── Security: Limit total stream size to prevent memory exhaustion ──
+      totalBytesReceived += value.byteLength;
+      if (totalBytesReceived > MAX_BUFFER_BYTES) {
+        reader.cancel();
+        throw new Error('Response stream exceeded maximum allowed size.');
+      }
+
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      
+
       // Keep the last incomplete line in the buffer
       buffer = lines.pop() || '';
 
@@ -96,14 +129,14 @@ export const sendChatCompletion = async (baseUrl, model, messages, options, onCh
             if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
               onChunk(data.choices[0].delta.content);
             }
-          } catch (e) {
-            console.warn('Error parsing stream data:', e, line);
+          } catch {
+            // Silently ignore malformed SSE frames — don't log raw server data
           }
         }
       }
     }
   } catch (error) {
-    console.error('Error in chat completion:', error);
+    if (import.meta.env.DEV) console.error('Error in chat completion:', error);
     throw error;
   }
 };

@@ -7,6 +7,83 @@ localforage.config({
   storeName: 'store'
 });
 
+// ── Security: Clamp values to safe ranges ────────────────────────────────────
+const MAX_TOKENS_MIN = 1;
+const MAX_TOKENS_MAX = 32768;
+const TEMPERATURE_MIN = 0;
+const TEMPERATURE_MAX = 2;
+const MAX_CHATS = 200;
+const MAX_MESSAGES_PER_CHAT = 2000;
+const MAX_CONTENT_LENGTH = 500_000; // 500k chars per message
+
+const clamp = (val, min, max) => Math.min(Math.max(Number(val) || min, min), max);
+
+/**
+ * Validates and sanitizes data loaded from localforage before it is applied
+ * to the Zustand store. This prevents a malicious or corrupted storage entry
+ * from poisoning app state with unexpected types or values.
+ */
+const sanitizeStoredData = (raw) => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  // Validate baseUrl — must be a string with http/https scheme
+  let baseUrl = 'http://localhost:1234/v1';
+  if (typeof raw.baseUrl === 'string' && raw.baseUrl.length < 2048) {
+    try {
+      const parsed = new URL(raw.baseUrl);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        baseUrl = raw.baseUrl;
+      }
+    } catch { /* invalid URL — use default */ }
+  }
+
+  const selectedModel =
+    typeof raw.selectedModel === 'string' && raw.selectedModel.length < 512
+      ? raw.selectedModel
+      : '';
+
+  const systemPrompt =
+    typeof raw.systemPrompt === 'string' && raw.systemPrompt.length < 50_000
+      ? raw.systemPrompt
+      : '';
+
+  const temperature = clamp(raw.temperature, TEMPERATURE_MIN, TEMPERATURE_MAX);
+  const maxTokens = clamp(raw.maxTokens, MAX_TOKENS_MIN, MAX_TOKENS_MAX);
+
+  // Sanitize chats array
+  let chats = [];
+  if (Array.isArray(raw.chats)) {
+    chats = raw.chats
+      .slice(0, MAX_CHATS)
+      .filter(chat => chat && typeof chat === 'object')
+      .map(chat => ({
+        id: typeof chat.id === 'string' ? chat.id.slice(0, 64) : uuidv4(),
+        title: typeof chat.title === 'string' ? chat.title.slice(0, 200) : 'Chat',
+        messages: Array.isArray(chat.messages)
+          ? chat.messages
+              .slice(0, MAX_MESSAGES_PER_CHAT)
+              .filter(m => m && typeof m === 'object')
+              .map(m => ({
+                role: ['user', 'assistant', 'system'].includes(m.role) ? m.role : 'user',
+                content:
+                  typeof m.content === 'string'
+                    ? m.content.slice(0, MAX_CONTENT_LENGTH)
+                    : Array.isArray(m.content)
+                    ? m.content.slice(0, 20) // multipart messages
+                    : '',
+              }))
+          : [],
+      }));
+  }
+
+  const activeChatId =
+    typeof raw.activeChatId === 'string' && raw.activeChatId.length < 64
+      ? raw.activeChatId
+      : null;
+
+  return { baseUrl, selectedModel, temperature, maxTokens, systemPrompt, chats, activeChatId };
+};
+
 export const useStore = create((set, get) => ({
   // Settings
   baseUrl: 'http://localhost:1234/v1',
@@ -14,7 +91,7 @@ export const useStore = create((set, get) => ({
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: '',
-  
+
   // Chats
   chats: [],
   activeChatId: null,
@@ -27,7 +104,15 @@ export const useStore = create((set, get) => ({
   // Actions
   setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
   setSettings: (settings) => {
-    set((state) => ({ ...state, ...settings }));
+    // ── Security: Clamp numeric fields before persisting ──────────────────
+    const sanitized = { ...settings };
+    if ('maxTokens' in sanitized) {
+      sanitized.maxTokens = clamp(sanitized.maxTokens, MAX_TOKENS_MIN, MAX_TOKENS_MAX);
+    }
+    if ('temperature' in sanitized) {
+      sanitized.temperature = clamp(sanitized.temperature, TEMPERATURE_MIN, TEMPERATURE_MAX);
+    }
+    set((state) => ({ ...state, ...sanitized }));
     get().saveToStorage();
   },
 
@@ -49,8 +134,8 @@ export const useStore = create((set, get) => ({
       const newChats = state.chats.filter(c => c.id !== id);
       return {
         chats: newChats,
-        activeChatId: state.activeChatId === id 
-          ? (newChats.length > 0 ? newChats[0].id : null) 
+        activeChatId: state.activeChatId === id
+          ? (newChats.length > 0 ? newChats[0].id : null)
           : state.activeChatId
       };
     });
@@ -68,7 +153,10 @@ export const useStore = create((set, get) => ({
         if (chat.id === chatId) {
           let newTitle = chat.title;
           if (chat.messages.length === 0 && message.role === 'user') {
-            newTitle = message.content.substring(0, 30) + (message.content.length > 30 ? '...' : '');
+            const text = typeof message.content === 'string'
+              ? message.content
+              : (Array.isArray(message.content) ? (message.content[0]?.text ?? '') : '');
+            newTitle = text.substring(0, 30) + (text.length > 30 ? '...' : '');
           }
           return { ...chat, title: newTitle, messages: [...chat.messages, message] };
         }
@@ -120,13 +208,20 @@ export const useStore = create((set, get) => ({
   },
 
   loadFromStorage: async () => {
-    const data = await localforage.getItem('appState');
-    if (data) {
-      set(data);
-      if (data.chats && data.chats.length === 0) {
+    try {
+      const raw = await localforage.getItem('appState');
+      // ── Security: Validate/sanitize before applying to store ─────────────
+      const data = sanitizeStoredData(raw);
+      if (data) {
+        set(data);
+        if (data.chats && data.chats.length === 0) {
+          get().createChat();
+        }
+      } else {
         get().createChat();
       }
-    } else {
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('Failed to load from storage:', err);
       get().createChat();
     }
   }
