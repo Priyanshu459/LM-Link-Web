@@ -436,6 +436,9 @@ body {
   height: 100%;
   padding: 16px;
   overflow: hidden;
+  /* Ensure sidebar is always a stacking context on desktop */
+  position: relative;
+  z-index: 0;
 }
 
 .new-chat-btn {
@@ -908,29 +911,43 @@ body {
   .sidebar {
     position: fixed;
     top: 0;
-    left: -100%;
+    /* Start OFF-SCREEN to the left using translateX so the
+       math stays relative to the element's own width — not the viewport */
+    left: 0;
+    transform: translateX(-100%);
     height: 100dvh;
     width: min(300px, 85vw);
     z-index: 50;
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 4px 0 32px rgba(0, 0, 0, 0.6);
     background: var(--bg-color);
-    /* Safe area */
-    padding-top: calc(16px + var(--safe-top));
-    padding-bottom: calc(16px + var(--safe-bottom));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* Safe area: top notch, bottom home bar, left edge (landscape) */
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: 16px;
   }
-  .sidebar.mobile-open { transform: translateX(100%); }
+
+  /* Slide fully into view */
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
 
   .sidebar-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-shrink: 0;
   }
   .sidebar-header .new-chat-btn {
     margin-bottom: 0;
     flex: 1;
-    margin-right: 10px;
+    margin-right: 0;
   }
 
   .mobile-close-btn { display: flex; }
